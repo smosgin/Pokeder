@@ -13,10 +13,13 @@ struct ContentView: View {
     
     var body: some View {
         VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("\(viewModel.pokeData?.name)")
+            AsyncImage(url: viewModel.pokeData?.sprites.front_default)
+            if let name = viewModel.pokeData?.name {
+                Text("\(name.capitalized)")
+            } else {
+                Text("Who's that pokemon?")
+            }
+            LikeAndDislikeTray(viewModel: viewModel)
         }
         .padding()
         .onAppear {
@@ -30,7 +33,7 @@ struct ContentView: View {
 }
 
 struct LikeAndDislikeTray: View {
-    @Binding var imageId: UUID
+    @ObservedObject var viewModel: PokederViewModel
     
     var body: some View {
         HStack {
@@ -38,14 +41,18 @@ struct LikeAndDislikeTray: View {
                 //perform the like action
                 
                 //refresh the pokemon
-                imageId = UUID()
+                Task {
+                    await viewModel.likeThatPokemon()
+                }
             }
             Spacer()
             Button("Dislike") {
                 //perform the dislike action
                 
                 //refresh the pokemon
-                imageId = UUID()
+                Task {
+                    await viewModel.dislikeThatPokemon()
+                }
             }
         }
     }
@@ -55,6 +62,11 @@ struct Pokemon: Codable {
     var id: Int
     var name: String
     var height: Int
+    var sprites: Sprites
+}
+
+struct Sprites: Codable {
+    var front_default: URL
 }
 
 @MainActor class PokederViewModel: ObservableObject {
@@ -78,6 +90,20 @@ struct Pokemon: Codable {
     
     func fetchData() async {
         pokeData = await downloadData()
+    }
+    
+    func likeThatPokemon() async {
+        //perform the like action?
+        
+        //fetch a new pokemon
+        await fetchData()
+    }
+    
+    func dislikeThatPokemon() async {
+        //perform the like action?
+        
+        //fetch a new pokemon
+        await fetchData()
     }
 }
 
