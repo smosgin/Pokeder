@@ -13,8 +13,8 @@ struct ContentView: View {
     
     var body: some View {
         VStack {
-            AsyncImage(url: viewModel.pokeData?.sprites.front_default)
-            if let name = viewModel.pokeData?.name {
+            AsyncImage(url: viewModel.currentPokemon?.sprites.front_default)
+            if let name = viewModel.currentPokemon?.name {
                 Text("\(name.capitalized)")
             } else {
                 Text("Who's that pokemon?")
@@ -58,27 +58,90 @@ struct LikeAndDislikeTray: View {
     }
 }
 
+struct PokemonAPIResponse: Codable {
+    var count: Int
+    var next: URL?
+    var previous: URL?
+    var results: [PokemonWrapper]
+}
+
+struct PokemonWrapper: Codable {
+    var name: String
+    var url: URL
+}
+
 struct Pokemon: Codable {
     var id: Int
     var name: String
-    var height: Int
+    var abilities: [PokemonAbilityWrapper]
+    var cries: PokemonCries
     var sprites: Sprites
+    var height: Int
+    var moves: [PokemonMoveWrapper]
+    var stats: [PokemonStatWrapper]
+}
+
+struct PokemonAbilityWrapper: Codable {
+    var ability: PokemonAbility
+    var is_hidden: Bool //convert this to camelcase?
+    var slot: Int
+}
+
+struct PokemonAbility: Codable {
+    var name: String
+    var url: URL
+}
+
+struct PokemonCries: Codable {
+    var latest: URL
+    var legacy: URL
 }
 
 struct Sprites: Codable {
     var front_default: URL
 }
 
+struct PokemonMoveWrapper: Codable {
+    var move: PokemonMove
+}
+
+struct PokemonMove: Codable {
+    var name: String
+    var url: URL
+}
+
+struct PokemonStatWrapper: Codable {
+    var base_stat: Int //convert to camelcase
+    var effort: Int
+    var stat: PokemonStat
+}
+
+struct PokemonStat: Codable {
+    var name: String
+    var url: URL
+}
+
 @MainActor class PokederViewModel: ObservableObject {
     let apiString = "https://pokeapi.co/api/v2/pokemon/"
-    let MAX_ID = 1328
     
-    @Published var pokeData: Pokemon?
+    @Published var pokeData: PokemonAPIResponse?
+    var currentPokemonWrapper: PokemonWrapper?
+    @Published var currentPokemon: Pokemon?
     
-    private func downloadData() async -> Pokemon? {
+    private func downloadData() async -> PokemonAPIResponse? {
         do {
-            let randomId = Int.random(in: 1...MAX_ID)
-            guard let url = URL(string: apiString + "\(randomId)") else { return nil }
+            guard let url = URL(string: apiString) else { return nil }
+            let (data, response) = try await URLSession.shared.data(from: url)
+            let decodedData = try JSONDecoder().decode(PokemonAPIResponse.self, from: data)
+            return decodedData
+        } catch {
+            //error handling
+        }
+        return nil
+    }
+    
+    private func downloadPokemonData(url: URL) async -> Pokemon? {
+        do {
             let (data, response) = try await URLSession.shared.data(from: url)
             let decodedData = try JSONDecoder().decode(Pokemon.self, from: data)
             return decodedData
@@ -90,6 +153,9 @@ struct Sprites: Codable {
     
     func fetchData() async {
         pokeData = await downloadData()
+        currentPokemonWrapper = pokeData?.results.first
+        guard let currentPokemonWrapper = currentPokemonWrapper else { return }
+        currentPokemon = await downloadPokemonData(url: currentPokemonWrapper.url)
     }
     
     func likeThatPokemon() async {
