@@ -19,6 +19,7 @@ struct ContentView: View {
             } else {
                 Text("Who's that pokemon?")
             }
+            PokemonBioCard(viewModel: viewModel)
             LikeAndDislikeTray(viewModel: viewModel)
         }
         .padding()
@@ -27,6 +28,22 @@ struct ContentView: View {
                 Task {
                     await viewModel.fetchData()
                 }
+            }
+        }
+    }
+}
+
+struct PokemonBioCard: View {
+    @ObservedObject var viewModel: PokederViewModel
+    
+    var body: some View {
+        let height = viewModel.currentPokemon?.height ?? -1
+        let weight = viewModel.currentPokemon?.weight ?? -1
+        VStack {
+            HStack {
+                Text("Height: \(height) decimeters")
+                Spacer()
+                Text("Weight: \(weight) hectograms")
             }
         }
     }
@@ -77,6 +94,7 @@ struct Pokemon: Codable {
     var cries: PokemonCries
     var sprites: Sprites
     var height: Int
+    var weight: Int
     var moves: [PokemonMoveWrapper]
     var stats: [PokemonStatWrapper]
 }
@@ -128,9 +146,8 @@ struct PokemonStat: Codable {
     var currentPokemonWrapper: PokemonWrapper?
     @Published var currentPokemon: Pokemon?
     
-    private func downloadData() async -> PokemonAPIResponse? {
+    private func downloadData(url: URL) async -> PokemonAPIResponse? {
         do {
-            guard let url = URL(string: apiString) else { return nil }
             let (data, response) = try await URLSession.shared.data(from: url)
             let decodedData = try JSONDecoder().decode(PokemonAPIResponse.self, from: data)
             return decodedData
@@ -152,24 +169,53 @@ struct PokemonStat: Codable {
     }
     
     func fetchData() async {
-        pokeData = await downloadData()
+        if pokeData == nil {
+            guard let url = URL(string: apiString) else { return }
+            pokeData = await downloadData(url: url)
+        } else {
+            guard let url = pokeData?.next else { return } //i think this will cause the like button to not do anything once we reach the end of the list of pokemon, eventually
+            pokeData = await downloadData(url: url)
+        }
         currentPokemonWrapper = pokeData?.results.first
         guard let currentPokemonWrapper = currentPokemonWrapper else { return }
         currentPokemon = await downloadPokemonData(url: currentPokemonWrapper.url)
+    }
+    
+    func isRefreshNeeded() -> Bool {
+        guard let pokeData = pokeData else { return true }
+        guard let currentPokemonWrapper = currentPokemonWrapper else { return true }
+        
+        if currentPokemonWrapper.name == pokeData.results.last?.name {
+            return true
+        } else {
+            return false
+        }
+    }
+    
+    func loadNextPokemon() async {
+        if isRefreshNeeded() {
+            await fetchData()
+        } else {
+            guard var index = pokeData?.results.firstIndex(where: {($0.name == currentPokemonWrapper?.name)}) else { return }
+            index += 1
+            currentPokemonWrapper = pokeData?.results[index]
+            guard let currentPokemonWrapper = currentPokemonWrapper else { return }
+            currentPokemon = await downloadPokemonData(url: currentPokemonWrapper.url)
+        }
     }
     
     func likeThatPokemon() async {
         //perform the like action?
         
         //fetch a new pokemon
-        await fetchData()
+        await loadNextPokemon()
     }
     
     func dislikeThatPokemon() async {
         //perform the like action?
         
         //fetch a new pokemon
-        await fetchData()
+        await loadNextPokemon()
     }
 }
 
