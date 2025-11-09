@@ -39,11 +39,32 @@ struct PokemonBioCard: View {
     var body: some View {
         let height = viewModel.currentPokemon?.height ?? -1
         let weight = viewModel.currentPokemon?.weight ?? -1
+        let abilities = viewModel.currentPokemon?.abilities ?? []
+        let moves = viewModel.currentPokemon?.moves ?? []
+        let stats = viewModel.currentPokemon?.stats ?? []
         VStack {
             HStack {
                 Text("Height: \(height) decimeters")
                 Spacer()
                 Text("Weight: \(weight) hectograms")
+            }
+            List {
+                ForEach(abilities) { ability in
+                    Text(ability.ability.name)
+                }
+            }
+            List {
+                ForEach(moves) { move in
+                    Text(move.move.name)
+                }
+            }
+            List {
+                ForEach(stats) { stat in
+                    HStack {
+                        Text(stat.stat.name)
+                        Text(stat.baseStat.description)
+                    }
+                }
             }
         }
     }
@@ -99,10 +120,16 @@ struct Pokemon: Codable {
     var stats: [PokemonStatWrapper]
 }
 
-struct PokemonAbilityWrapper: Codable {
+struct PokemonAbilityWrapper: Codable, Identifiable {
+    var id = UUID()
     var ability: PokemonAbility
-    var is_hidden: Bool //convert this to camelcase?
+    var isHidden: Bool
     var slot: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case ability, slot
+        case isHidden = "is_hidden"
+    }
 }
 
 struct PokemonAbility: Codable {
@@ -119,8 +146,13 @@ struct Sprites: Codable {
     var front_default: URL
 }
 
-struct PokemonMoveWrapper: Codable {
+struct PokemonMoveWrapper: Codable, Identifiable {
+    var id = UUID()
     var move: PokemonMove
+    
+    enum CodingKeys: String, CodingKey {
+        case move
+    }
 }
 
 struct PokemonMove: Codable {
@@ -128,10 +160,16 @@ struct PokemonMove: Codable {
     var url: URL
 }
 
-struct PokemonStatWrapper: Codable {
-    var base_stat: Int //convert to camelcase
+struct PokemonStatWrapper: Codable, Identifiable {
+    var id = UUID()
+    var baseStat: Int
     var effort: Int
     var stat: PokemonStat
+    
+    enum CodingKeys: String, CodingKey {
+        case baseStat = "base_stat"
+        case effort, stat
+    }
 }
 
 struct PokemonStat: Codable {
@@ -164,6 +202,7 @@ struct PokemonStat: Codable {
             return decodedData
         } catch {
             //error handling
+            print(error.localizedDescription)
         }
         return nil
     }
