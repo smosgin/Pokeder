@@ -10,23 +10,71 @@ import SwiftUI
 struct ContentView: View {
     
     @StateObject var viewModel = PokederViewModel()
+    @State private var isProfilePresented = false
     
     var body: some View {
-        VStack {
-            AsyncImage(url: viewModel.currentPokemon?.sprites.front_default)
-            if let name = viewModel.currentPokemon?.name {
-                Text("\(name.capitalized)")
-            } else {
-                Text("Who's that pokemon?")
+        NavigationStack {
+            VStack {
+                AsyncImage(url: viewModel.currentPokemon?.sprites.front_default)
+                if let name = viewModel.currentPokemon?.name {
+                    Text("\(name.capitalized)")
+                } else {
+                    Text("Who's that pokemon?")
+                }
+                PokemonBioCard(viewModel: viewModel)
+                LikeAndDislikeTray(viewModel: viewModel)
             }
-            PokemonBioCard(viewModel: viewModel)
-            LikeAndDislikeTray(viewModel: viewModel)
+            .padding()
+            .toolbar {
+                Button("User Profile", systemImage: "person.circle") {
+                    isProfilePresented.toggle()
+                }
+            }
+            .popover(isPresented: $isProfilePresented) {
+                UserProfileView(viewModel: viewModel, isPresented: $isProfilePresented)
+            }
+            .onAppear {
+                initializeApp()
+            }
         }
-        .padding()
-        .onAppear {
-            if viewModel.pokeData == nil {
-                Task {
-                    await viewModel.fetchData()
+    }
+    
+    func initializeApp() {
+        if viewModel.pokeData == nil {
+            Task {
+                await viewModel.fetchData()
+            }
+        }
+        viewModel.loadLikedAndDislikedPokemon()
+    }
+}
+
+struct UserProfileView: View {
+    @ObservedObject var viewModel: PokederViewModel
+    @Binding var isPresented: Bool
+    
+    var body: some View {
+        NavigationStack {
+            Text("Hey there, user!")
+            List {
+                Section("Your liked pokemon") {
+                    let likedPokemon = viewModel.likedPokemon ?? []
+                    ForEach(likedPokemon) { pokemon in
+                        Text("\(pokemon.name) pokemon")
+                    }
+                }
+            }
+            List {
+                Section("Your disliked pokemon") {
+                    let dislikedPokemon = viewModel.dislikedPokemon ?? []
+                    ForEach(dislikedPokemon) { pokemon in
+                        Text("\(pokemon.name) pokemon")
+                    }
+                }
+            }
+            .toolbar {
+                Button("Done") {
+                    isPresented.toggle()
                 }
             }
         }
@@ -108,7 +156,7 @@ struct PokemonWrapper: Codable {
     var url: URL
 }
 
-struct Pokemon: Codable {
+struct Pokemon: Codable, Equatable, Identifiable {
     var id: Int
     var name: String
     var abilities: [PokemonAbilityWrapper]
@@ -118,6 +166,10 @@ struct Pokemon: Codable {
     var weight: Int
     var moves: [PokemonMoveWrapper]
     var stats: [PokemonStatWrapper]
+    
+    static func == (lhs: Pokemon, rhs: Pokemon) -> Bool {
+        return lhs.id == rhs.id
+    }
 }
 
 struct PokemonAbilityWrapper: Codable, Identifiable {
@@ -177,12 +229,36 @@ struct PokemonStat: Codable {
     var url: URL
 }
 
+struct UserProfile: Codable {
+    var firstName: String
+    var lastName: String
+    var email: String
+}
+
 @MainActor class PokederViewModel: ObservableObject {
     let apiString = "https://pokeapi.co/api/v2/pokemon/"
+    let firstNameKey = "fname"
+    static let DEFAULT_FIRST_NAME = "Ash"
+    let lastNameKey = "lname"
+    static let DEFAULT_LAST_NAME = "Ketchum"
+    let emailKey = "email"
+    static let DEFAULT_EMAIL = "ash@example.com"
+    let LIKED_POKEMON_FILENAME = "likedPokemon.json"
+    let DISLIKED_POKEMON_FILENAME = "dislikedPokemon.json"
+    
+    var userData: UserProfile = UserProfile(firstName: DEFAULT_FIRST_NAME, lastName: DEFAULT_LAST_NAME, email: DEFAULT_EMAIL)
     
     @Published var pokeData: PokemonAPIResponse?
     var currentPokemonWrapper: PokemonWrapper?
     @Published var currentPokemon: Pokemon?
+    @Published var likedPokemon: [Pokemon]?
+    @Published var dislikedPokemon: [Pokemon]?
+    
+    func loadUserDefaults() {
+        userData.firstName = UserDefaults.standard.string(forKey: firstNameKey) ?? PokederViewModel.DEFAULT_FIRST_NAME
+        userData.lastName = UserDefaults.standard.string(forKey: lastNameKey) ?? PokederViewModel.DEFAULT_LAST_NAME
+        userData.email = UserDefaults.standard.string(forKey: emailKey) ?? PokederViewModel.DEFAULT_EMAIL
+    }
     
     private func downloadData(url: URL) async -> PokemonAPIResponse? {
         do {
@@ -207,12 +283,17 @@ struct PokemonStat: Codable {
         return nil
     }
     
+    func loadLikedAndDislikedPokemon() {
+        likedPokemon = loadPokemonFromFile(LIKED_POKEMON_FILENAME)
+        dislikedPokemon = loadPokemonFromFile(DISLIKED_POKEMON_FILENAME)
+    }
+    
     func fetchData() async {
         if pokeData == nil {
             guard let url = URL(string: apiString) else { return }
             pokeData = await downloadData(url: url)
         } else {
-            guard let url = pokeData?.next else { return } //i think this will cause the like button to not do anything once we reach the end of the list of pokemon, eventually
+            guard let url = pokeData?.next else { return } //TODO: i think this will cause the like button to not do anything once we reach the end of the list of pokemon, eventually
             pokeData = await downloadData(url: url)
         }
         currentPokemonWrapper = pokeData?.results.first
@@ -243,15 +324,52 @@ struct PokemonStat: Codable {
         }
     }
     
+    func loadPokemonFromFile(_ filename: String) -> [Pokemon]? {
+        guard let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return nil }
+        let fileURL = directory.appending(path: filename, directoryHint: .notDirectory)
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let decoder = JSONDecoder()
+            return try decoder.decode([Pokemon].self, from: data)
+        } catch {
+            print(error.localizedDescription)
+            return nil
+        }
+    }
+    
+    func savePokemonToFile(_ filename: String) {
+        guard let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+                let currentPokemon = currentPokemon
+        else { return }
+        let fileURL = directory.appending(path: filename, directoryHint: .notDirectory)
+        let encoder = JSONEncoder()
+        var existingPokemon = loadPokemonFromFile(filename) ?? [] //maybe unnecessary if we check for existingpokemon first elsewhere?
+        if existingPokemon.contains(currentPokemon) == true {
+            print("pokemon already in file")
+            return
+        }
+        existingPokemon.append(currentPokemon)
+        do {
+            let data = try encoder.encode(existingPokemon)
+            try data.write(to: fileURL)
+        } catch {
+            print(error.localizedDescription)
+        }
+        
+    }
+    
     func likeThatPokemon() async {
         //perform the like action?
+        savePokemonToFile(LIKED_POKEMON_FILENAME)
+        likedPokemon = loadPokemonFromFile(LIKED_POKEMON_FILENAME)
         
         //fetch a new pokemon
         await loadNextPokemon()
     }
     
     func dislikeThatPokemon() async {
-        //perform the like action?
+        savePokemonToFile(DISLIKED_POKEMON_FILENAME)
+        dislikedPokemon = loadPokemonFromFile(DISLIKED_POKEMON_FILENAME)
         
         //fetch a new pokemon
         await loadNextPokemon()
