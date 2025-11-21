@@ -26,8 +26,27 @@ struct ContentView: View {
             }
             .padding()
             .toolbar {
-                Button("User Profile", systemImage: "person.circle") {
-                    isProfilePresented.toggle()
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isProfilePresented.toggle()
+                    } label: {
+                        let notificationCount = viewModel.unreadMatches
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "person.circle")
+                                .font(.title2)
+                            if notificationCount > 0 {
+                                ZStack {
+                                    Circle()
+                                        .fill(.red)
+                                    Text(notificationCount > 99 ? "99+" : "\(notificationCount)")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(.white)
+                                }
+                                .frame(width: notificationCount > 9 ? 20 : 18, height: notificationCount > 9 ? 20 : 18)
+                                .offset(x: 4, y: -4)
+                            }
+                        }
+                    }
                 }
             }
             .popover(isPresented: $isProfilePresented) {
@@ -56,6 +75,13 @@ struct UserProfileView: View {
     var body: some View {
         NavigationStack {
             Text("Hey there, user!")
+            List {
+                Section("Pokemon that like you back!") {
+                    ForEach(viewModel.pokemonMatches) { pokemon in
+                        Text("Pokemon with ID:\(pokemon.pokemonId) likes you back!")
+                    }
+                }
+            }
             List {
                 Section("Your liked pokemon") {
                     let likedPokemon = viewModel.likedPokemon ?? []
@@ -120,7 +146,7 @@ struct PokemonBioCard: View {
 
 struct LikeAndDislikeTray: View {
     @ObservedObject var viewModel: PokederViewModel
-    
+    //TODO: - enable or disable buttons if pokemon is loaded or not
     var body: some View {
         HStack {
             Button("Like") {
@@ -147,3 +173,7 @@ struct LikeAndDislikeTray: View {
 #Preview {
     ContentView()
 }
+
+#Preview(body: {
+    UserProfileView(viewModel: PokederViewModel(), isPresented: .constant(true))
+})

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 
 @MainActor class PokederViewModel: ObservableObject {
     let apiString = "https://pokeapi.co/api/v2/pokemon/"
@@ -25,6 +26,25 @@ import Foundation
     @Published var currentPokemon: Pokemon?
     @Published var likedPokemon: [Pokemon]?
     @Published var dislikedPokemon: [Pokemon]?
+    @Published var unreadMatches: Int = 0 //TODO: - persist this data somewhere
+    @Published var pokemonMatches: [PokemonMatch] = []
+    private let pokemonLikedBackPublisher = PassthroughSubject<Pokemon, Never>()
+    private var cancellables = Set<AnyCancellable>()
+    
+    init() {
+        subscribeToPokemonMatches()
+    }
+    
+    func subscribeToPokemonMatches() {
+        pokemonLikedBackPublisher
+            .sink { [weak self] pokemon in
+                guard let self = self else { return }
+                self.unreadMatches += 1
+                let match = PokemonMatch(id: UUID(), pokemonId: pokemon.id, isRead: false)
+                pokemonMatches.append(match)
+            }
+            .store(in: &cancellables)
+    }
     
     func loadUserDefaults() {
         userData.firstName = UserDefaults.standard.string(forKey: firstNameKey) ?? PokederViewModel.DEFAULT_FIRST_NAME
@@ -130,10 +150,20 @@ import Foundation
         
     }
     
+    func determineIfPokemonLikesBack(pokemon: Pokemon) {
+        //simulate doing some long logic to figure out if there's a match
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            guard let self = self else { return }
+            self.pokemonLikedBackPublisher.send(pokemon)
+        }
+    }
+    
     func likeThatPokemon() async {
+        guard let currentPokemon = currentPokemon else { return }
         //perform the like action?
         savePokemonToFile(LIKED_POKEMON_FILENAME)
         likedPokemon = loadPokemonFromFile(LIKED_POKEMON_FILENAME)
+        determineIfPokemonLikesBack(pokemon: currentPokemon)
         
         //fetch a new pokemon
         await loadNextPokemon()

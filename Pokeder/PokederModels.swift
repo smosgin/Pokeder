@@ -96,3 +96,9 @@ struct UserProfile: Codable {
     var lastName: String
     var email: String
 }
+
+struct PokemonMatch: Codable, Identifiable {
+    var id: UUID
+    var pokemonId: Int
+    var isRead: Bool
+}
