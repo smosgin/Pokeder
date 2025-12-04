@@ -11,6 +11,7 @@ struct ContentView: View {
     
     @StateObject var viewModel = PokederViewModel()
     @State private var isProfilePresented = false
+    @State private var dragOffset = CGSize.zero
     
     var body: some View {
         NavigationStack {
@@ -55,7 +56,17 @@ struct ContentView: View {
             .onAppear {
                 initializeApp()
             }
+            .offset(dragOffset)
+            .animation(.interactiveSpring, value: dragOffset)
         }
+        .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+            .onEnded({ value in
+                dragGestureLogic(value: value)
+            })
+            .onChanged({ value in
+                dragOffset = value.translation
+            })
+        )
     }
     
     func initializeApp() {
@@ -65,6 +76,30 @@ struct ContentView: View {
             }
         }
         viewModel.loadLikedAndDislikedPokemon()
+    }
+    
+    func dragGestureLogic(value: DragGesture.Value) {
+        let horizontalAmount = value.translation.width
+        let verticalAmount = value.translation.height
+        
+        if abs(horizontalAmount) > abs(verticalAmount) {
+            if abs(horizontalAmount) > 100 {
+                dragOffset = .zero
+                if horizontalAmount < 0 {
+                    Task {
+                        await viewModel.dislikeThatPokemon()
+                    }
+                } else {
+                    Task {
+                        await viewModel.likeThatPokemon()
+                    }
+                }
+            } else {
+                withAnimation(.spring) {
+                    dragOffset = .zero
+                }
+            }
+        }
     }
 }
 
@@ -149,21 +184,21 @@ struct LikeAndDislikeTray: View {
     //TODO: - enable or disable buttons if pokemon is loaded or not
     var body: some View {
         HStack {
-            Button("Like") {
-                //perform the like action
-                
-                //refresh the pokemon
-                Task {
-                    await viewModel.likeThatPokemon()
-                }
-            }
-            Spacer()
             Button("Dislike") {
                 //perform the dislike action
                 
                 //refresh the pokemon
                 Task {
                     await viewModel.dislikeThatPokemon()
+                }
+            }
+            Spacer()
+            Button("Like") {
+                //perform the like action
+                
+                //refresh the pokemon
+                Task {
+                    await viewModel.likeThatPokemon()
                 }
             }
         }
