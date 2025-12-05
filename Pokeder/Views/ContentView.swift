@@ -15,7 +15,7 @@ struct ContentView: View {
     
     var body: some View {
         NavigationStack {
-            VStack {
+            VStack { 
                 AsyncImage(url: viewModel.currentPokemon?.sprites.front_default)
                 if let name = viewModel.currentPokemon?.name {
                     Text("\(name.capitalized)")
