@@ -94,6 +94,10 @@ struct ContentView: View {
                     dragOffset = .zero
                 }
             }
+        } else {
+            withAnimation(.spring) {
+                dragOffset = .zero
+            }
         }
     }
 }
