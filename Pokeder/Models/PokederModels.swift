@@ -63,13 +63,45 @@ struct Sprites: Codable {
 struct PokemonMoveWrapper: Codable, Identifiable {
     var id = UUID()
     var move: PokemonMove
+    var versionGroupDetails: [PokemonVersionGroupDetails]
     
     enum CodingKeys: String, CodingKey {
         case move
+        case versionGroupDetails = "version_group_details"
+    }
+}
+
+struct PokemonVersionGroupDetails: Codable {
+    var levelLearnedAt: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case levelLearnedAt = "level_learned_at"
     }
 }
 
 struct PokemonMove: Codable {
+    var name: String
+    var url: URL
+}
+
+struct PokemonMoveDetail: Codable {
+    var id: Int
+    var name: String
+    var damageClass: PokemonMoveDamageClass
+    var type: PokemonMoveType
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name, type
+        case damageClass = "damage_class"
+    }
+}
+
+struct PokemonMoveDamageClass: Codable {
+    var name: String
+    var url: URL
+}
+
+struct PokemonMoveType: Codable {
     var name: String
     var url: URL
 }

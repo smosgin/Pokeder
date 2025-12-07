@@ -70,12 +70,7 @@ struct ContentView: View {
     }
     
     func initializeApp() {
-        if viewModel.pokeData == nil {
-            Task {
-                await viewModel.fetchData()
-            }
-        }
-        viewModel.loadLikedAndDislikedPokemon()
+        viewModel.initializeApp()
     }
     
     func dragGestureLogic(value: DragGesture.Value) {

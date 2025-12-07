@@ -32,7 +32,7 @@ struct PokemonBioCard: View {
             List() {
                 Section("Moves") {
                     ForEach(moves) { move in
-                        Text(move.move.name)
+                        PokemonMoveRow(pokemonMove: move, pokemonMoveType: viewModel.moveDetails[move.move.name]?.type.name ?? "Fetching data")
                     }
                 }
             }
@@ -50,6 +50,16 @@ struct PokemonBioCard: View {
     }
 }
 
+@MainActor
+private struct MockPokemonBioCard {
+    let vm = PokederViewModel()
+    
+    init(pokemon: Pokemon) {
+        vm.currentPokemon = pokemon
+    }
+}
+
 #Preview {
-    PokemonBioCard(viewModel: PokederViewModel())
+    let mock = MockPokemonBioCard(pokemon: PokederViewModel.mockData)
+    PokemonBioCard(viewModel: mock.vm)
 }

@@ -30,6 +30,7 @@ import Combine
     @Published var pokemonMatches: [PokemonMatch] = []
     private let pokemonLikedBackPublisher = PassthroughSubject<Pokemon, Never>()
     private var cancellables = Set<AnyCancellable>()
+    @Published var moveDetails: Dictionary<String, PokemonMoveDetail> = [:]
     
     init() {
         subscribeToPokemonMatches()
@@ -50,6 +51,15 @@ import Combine
         userData.firstName = UserDefaults.standard.string(forKey: firstNameKey) ?? PokederViewModel.DEFAULT_FIRST_NAME
         userData.lastName = UserDefaults.standard.string(forKey: lastNameKey) ?? PokederViewModel.DEFAULT_LAST_NAME
         userData.email = UserDefaults.standard.string(forKey: emailKey) ?? PokederViewModel.DEFAULT_EMAIL
+    }
+    
+    func initializeApp() {
+        if pokeData == nil {
+            Task {
+                await loadNextPokemon()
+            }
+        }
+        loadLikedAndDislikedPokemon()
     }
     
     private func downloadData(url: URL) async -> PokemonAPIResponse? {
@@ -75,12 +85,25 @@ import Combine
         return nil
     }
     
+    private func downloadPokemonMoveData(url: URL) async -> PokemonMoveDetail? {
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            let decodedData = try JSONDecoder().decode(PokemonMoveDetail.self, from: data)
+            return decodedData
+        } catch {
+            //error handling
+            print(error.localizedDescription)
+        }
+        return nil
+    }
+    
     func loadLikedAndDislikedPokemon() {
         likedPokemon = loadPokemonFromFile(LIKED_POKEMON_FILENAME)
         dislikedPokemon = loadPokemonFromFile(DISLIKED_POKEMON_FILENAME)
     }
     
-    func fetchData() async {
+    //Call loadNextPokemon() from anywhere outside of laodNextPokemon()
+    private func fetchPokemonData() async {
         if pokeData == nil {
             guard let url = URL(string: apiString) else { return }
             pokeData = await downloadData(url: url)
@@ -106,13 +129,25 @@ import Combine
     
     func loadNextPokemon() async {
         if isRefreshNeeded() {
-            await fetchData()
+            await fetchPokemonData()
         } else {
             guard var index = pokeData?.results.firstIndex(where: {($0.name == currentPokemonWrapper?.name)}) else { return }
             index += 1
             currentPokemonWrapper = pokeData?.results[index]
             guard let currentPokemonWrapper = currentPokemonWrapper else { return }
             currentPokemon = await downloadPokemonData(url: currentPokemonWrapper.url)
+        }
+        downloadPokemonMoveData()
+    }
+    
+    func downloadPokemonMoveData() {
+        guard let pokemon = currentPokemon else { return }
+        for move in pokemon.moves {
+            Task {
+                print("Creating task for \(move.move.url)")
+                let data = await downloadPokemonMoveData(url: move.move.url)
+                moveDetails[move.move.name] = data
+            }
         }
     }
     
@@ -131,7 +166,7 @@ import Combine
     
     func savePokemonToFile(_ filename: String) {
         guard let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
-                let currentPokemon = currentPokemon
+              let currentPokemon = currentPokemon
         else { return }
         let fileURL = directory.appending(path: filename, directoryHint: .notDirectory)
         let encoder = JSONEncoder()
