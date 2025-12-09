@@ -8,11 +8,41 @@
 import SwiftUI
 
 struct ErrorBannerView: View {
+    
+    let message: String
+    @Binding var isVisible: Bool
+    
     var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+        VStack {
+            if isVisible {
+                HStack {
+                    Image(systemName: "xmark.circle.fill")
+                    Text(message)
+                    
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 70)
+                .background(Color.red.ignoresSafeArea(edges: .top))
+                .foregroundStyle(.white)
+                .transition(
+                    .asymmetric(
+                        insertion: .push(from: .top),
+                        removal: .push(from: .bottom)
+                    )
+                )
+            }
+        }
+        .animation(.linear, value: isVisible)
     }
 }
 
 #Preview {
-    ErrorBannerView()
+    @Previewable @State var isVisible: Bool = false
+    ContentView(viewModel: PokederViewModel())
+        .overlay(alignment: .top) {
+            ErrorBannerView(message: "ERRORRRRRRR", isVisible: $isVisible)
+        }
+    Button("Test alert") {
+        isVisible.toggle()
+    }
 }

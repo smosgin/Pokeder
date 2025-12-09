@@ -15,7 +15,7 @@ struct ContentView: View {
     
     var body: some View {
         NavigationStack {
-            VStack { 
+            VStack {
                 AsyncImage(url: viewModel.currentPokemon?.sprites.front_default)
                 if let name = viewModel.currentPokemon?.name {
                     Text("\(name.capitalized)")
@@ -58,6 +58,9 @@ struct ContentView: View {
             }
             .offset(dragOffset)
             .animation(.interactiveSpring, value: dragOffset)
+            .overlay(alignment: .top) {
+                ErrorBannerView(message: viewModel.errorBannerMessage, isVisible: $viewModel.showErrorBanner)
+            }
         }
         .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
             .onEnded({ value in

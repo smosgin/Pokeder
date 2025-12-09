@@ -31,6 +31,8 @@ import Combine
     private let pokemonLikedBackPublisher = PassthroughSubject<Pokemon, Never>()
     private var cancellables = Set<AnyCancellable>()
     @Published var moveDetails: Dictionary<String, PokemonMoveDetail> = [:]
+    @Published var showErrorBanner: Bool = false
+    @Published var errorBannerMessage: String = "Generic error"
     
     init() {
         subscribeToPokemonMatches()
@@ -210,5 +212,13 @@ import Combine
         
         //fetch a new pokemon
         await loadNextPokemon()
+    }
+    
+    func showErrorToUser(message: String = "Generic error") {
+        errorBannerMessage = message
+        showErrorBanner = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: { [weak self] in
+            self?.showErrorBanner = false
+        })
     }
 }
